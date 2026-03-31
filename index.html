@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P&L Dashboard — Grupo Temple</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg-deep:    #080f1e;
+    --bg-card:    #101828;
+    --bg-hover:   #1a2540;
+    --border:     #1e2d45;
+    --accent:     #00d4aa;
+    --accent2:    #3b82f6;
+    --positive:   #22c55e;
+    --negative:   #ef4444;
+    --warning:    #f59e0b;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #475569;
+    --ingresos:   #00d4aa;
+    --gastos:     #ef4444;
+    --ebitda:     #3b82f6;
+    --neto:       #a855f7;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    min-height: 100vh;
+    font-size: 13px;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+  }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .logo {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+  .logo span { color: var(--text-secondary); font-weight: 400; font-size: 13px; margin-left:6px; }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .year-badge {
+    background: var(--accent);
+    color: var(--bg-deep);
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 12px;
+  }
+  .last-update {
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+  .loading-status {
+    display: none;
+    background: var(--warning);
+    color: var(--bg-deep);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+  /* ── COMPANY TABS ── */
+  .company-nav {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    gap: 0;
+  }
+  .company-tab {
+    padding: 10px 20px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    transition: all .2s;
+    font-size: 13px;
+    user-select: none;
+  }
+  .company-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+  .company-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── FILTERS BAR ── */
+  .filters-bar {
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-deep);
+    flex-wrap: wrap;
+  }
+  .filter-label { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .filter-group { display: flex; align-items: center; gap: 6px; }
+  .pill-group { display: flex; gap: 4px; }
+  .pill {
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all .15s;
+    background: transparent;
+    user-select: none;
+  }
+  .pill:hover { border-color: var(--accent); color: var(--text-primary); }
+  .pill.active { background: var(--accent); color: var(--bg-deep); border-color: var(--accent); font-weight: 600; }
+  .divider { width: 1px; height: 20px; background: var(--border); }
+
+  /* ── MAIN LAYOUT ── */
+  .main { padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
+
+  /* ── KPI CARDS ── */
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .2s;
+  }
+  .kpi-card:hover { border-color: var(--accent); }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .kpi-card.ingresos::before { background: var(--ingresos); }
+  .kpi-card.gastos::before { background: var(--gastos); }
+  .kpi-card.ebitda::before { background: var(--ebitda); }
+  .kpi-card.neto::before { background: var(--neto); }
+
+  .kpi-label { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+  .kpi-value { font-size: 24px; font-weight: 700; line-height: 1; margin-bottom: 8px; }
+  .kpi-value.ingresos { color: var(--ingresos); }
+  .kpi-value.gastos { color: var(--gastos); }
+  .kpi-value.ebitda { color: var(--ebitda); }
+  .kpi-value.neto { color: var(--neto); }
+  .kpi-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .kpi-pct {
+    font-size: 12px;
+    background: var(--bg-hover);
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: var(--text-secondary);
+  }
+  .kpi-vs { font-size: 11px; color: var(--text-muted); }
+  .delta { font-size: 11px; font-weight: 600; }
+  .delta.up { color: var(--positive); }
+  .delta.down { color: var(--negative); }
+  .delta::before { margin-right: 2px; }
+  .delta.up::before { content: '▲'; }
+  .delta.down::before { content: '▼'; }
+
+  /* ── CHARTS GRID ── */
+  .charts-grid { display: grid; grid-template-columns: 1fr 380px; gap: 14px; align-items: start; }
+  .chart-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .chart-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .chart-subtitle { font-size: 11px; color: var(--text-muted); margin-bottom: 16px; }
+  .chart-container { position: relative; }
+  .legend-row { display: flex; gap: 16px; margin-top: 10px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-secondary); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── PERIODO SELECTOR ── */
+  .periodo-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .month-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .month-btn {
+    padding: 7px 4px;
+    text-align: center;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--text-secondary);
+    transition: all .15s;
+    background: transparent;
+    user-select: none;
+    position: relative;
+  }
+  .month-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+  .month-btn.active { background: var(--accent); color: var(--bg-deep); border-color: var(--accent); font-weight: 700; }
+  .month-btn.has-data::after {
+    content: '';
+    position: absolute;
+    bottom: 3px; left: 50%;
+    transform: translateX(-50%);
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--positive);
+  }
+  .month-btn.active.has-data::after { background: var(--bg-deep); }
+
+  /* ── VARIANCE BAR ── */
+  .variance-section { display: flex; flex-direction: column; gap: 8px; }
+  .variance-row { display: grid; grid-template-columns: 110px 1fr 60px; align-items: center; gap: 8px; }
+  .var-label { font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .var-bar-track { background: var(--bg-hover); border-radius: 3px; height: 6px; overflow: hidden; }
+  .var-bar-fill { height: 100%; border-radius: 3px; transition: width .4s; }
+  .var-pct { font-size: 11px; font-weight: 600; text-align: right; }
+  .var-pct.pos { color: var(--positive); }
+  .var-pct.neg { color: var(--negative); }
+
+  /* ── P&L TABLE ── */
+  .table-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .table-header-bar {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .table-controls { display: flex; gap: 8px; align-items: center; }
+  .btn-sm {
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 11px;
+    background: transparent;
+    transition: all .15s;
+  }
+  .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+
+  .pl-table { width: 100%; border-collapse: collapse; }
+  .pl-table thead { position: sticky; top: 56px; z-index: 10; }
+  .pl-table th {
+    background: var(--bg-hover);
+    padding: 8px 12px;
+    text-align: right;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .pl-table th:first-child { text-align: left; min-width: 200px; }
+  .pl-table td {
+    padding: 7px 12px;
+    text-align: right;
+    border-bottom: 1px solid rgba(30,45,69,0.5);
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  .pl-table td:first-child { text-align: left; }
+  .pl-table tr:hover td { background: rgba(26,37,64,0.5); }
+
+  /* Row types */
+  .row-section-header td {
+    background: rgba(0,212,170,0.06);
+    color: var(--accent) !important;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-top: 1px solid rgba(0,212,170,0.15);
+    border-bottom: 1px solid rgba(0,212,170,0.15);
+  }
+  .row-section-header:hover td { background: rgba(0,212,170,0.1); }
+  .row-subtotal td {
+    font-weight: 700;
+    color: var(--text-primary) !important;
+    background: rgba(26,37,64,0.8);
+    font-size: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .row-result-ebitda td {
+    font-weight: 700;
+    color: var(--ebitda) !important;
+    background: rgba(59,130,246,0.08);
+    font-size: 13px;
+    border-top: 2px solid rgba(59,130,246,0.3);
+    border-bottom: 2px solid rgba(59,130,246,0.3);
+  }
+  .row-result-neto td {
+    font-weight: 700;
+    color: var(--neto) !important;
+    background: rgba(168,85,247,0.08);
+    font-size: 13px;
+    border-top: 2px solid rgba(168,85,247,0.3);
+    border-bottom: 2px solid rgba(168,85,247,0.3);
+  }
+  .row-detail td { color: var(--text-secondary); }
+  .row-detail.hidden { display: none; }
+
+  .cell-name { display: flex; align-items: center; gap: 6px; }
+  .indent { margin-left: 16px; }
+  .toggle-icon { font-size: 10px; transition: transform .2s; opacity: 0.6; }
+  .toggle-icon.open { transform: rotate(90deg); }
+
+  .cell-pct {
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 2px 5px;
+    border-radius: 3px;
+  }
+  .cell-vs-ppto {
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .cell-vs-ppto.pos { color: var(--positive); }
+  .cell-vs-ppto.neg { color: var(--negative); }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-deep); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* responsive */
+  @media (max-width: 900px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .charts-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <div class="logo">GRUPO TEMPLE <span>· Dashboard P&L</span></div>
+  </div>
+  <div class="header-right">
+    <span id="loading-status" class="loading-status">Cargando datos…</span>
+    <span id="last-update" class="last-update">Última actualización: —</span>
+    <span class="year-badge">2026</span>
+  </div>
+</div>
+
+<!-- COMPANY TABS -->
+<div class="company-nav">
+  <div class="company-tab active" onclick="selectCompany('consolidado', this)">Consolidado</div>
+  <div class="company-tab" onclick="selectCompany('tg', this)">TG</div>
+  <div class="company-tab" onclick="selectCompany('cds', this)">CDS</div>
+  <div class="company-tab" onclick="selectCompany('va', this)">VA</div>
+</div>
+
+<!-- FILTERS BAR -->
+<div class="filters-bar">
+  <span class="filter-label">Vista</span>
+  <div class="pill-group" id="view-pills">
+    <div class="pill active" onclick="selectView('real', this)">Real</div>
+    <div class="pill" onclick="selectView('ppto', this)">Presupuesto</div>
+    <div class="pill" onclick="selectView('comp', this)">Real vs Ppto</div>
+    <div class="pill" onclick="selectView('yoy', this)">YoY 2025</div>
+  </div>
+  <div class="divider"></div>
+  <span class="filter-label">Acumulado</span>
+  <div class="pill-group" id="accum-pills">
+    <div class="pill active" onclick="selectAccum('ytd', this)">YTD</div>
+    <div class="pill" onclick="selectAccum('mes', this)">Mes seleccionado</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- KPI ROW -->
+  <div class="kpi-row" id="kpi-row">
+    <!-- filled by JS -->
+  </div>
+
+  <!-- CHARTS + PERIODO -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Evolución mensual</div>
+      <div class="chart-subtitle">Ingresos · Gastos Totales · EBITDA — Montos en ARS</div>
+      <div class="chart-container" style="height:260px">
+        <canvas id="evolutionChart"></canvas>
+      </div>
+      <div class="legend-row">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--ingresos)"></div> Ingresos</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--gastos)"></div> Total Gastos</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--ebitda)"></div> EBITDA</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--neto)"></div> RDO. Neto</div>
+      </div>
+    </div>
+
+    <div class="periodo-card">
+      <div>
+        <div class="chart-title">Período</div>
+        <div class="chart-subtitle" style="margin-bottom:10px">Seleccioná el mes a detallar</div>
+        <div class="month-grid" id="month-grid">
+          <!-- filled by JS -->
+        </div>
+      </div>
+      <div>
+        <div class="chart-title" style="margin-bottom:10px">Real vs Presupuesto</div>
+        <div class="variance-section" id="variance-bars">
+          <!-- filled by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P&L TABLE -->
+  <div class="table-card">
+    <div class="table-header-bar">
+      <div>
+        <div class="chart-title" id="table-title">Estado de Resultados — Consolidado · YTD ENE–FEB 2026</div>
+        <div class="chart-subtitle">Valores en ARS · % sobre Ingresos</div>
+      </div>
+      <div class="table-controls">
+        <button class="btn-sm" onclick="expandAll()">Expandir todo</button>
+        <button class="btn-sm" onclick="collapseAll()">Colapsar todo</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="pl-table" id="pl-table">
+        <thead id="pl-thead"></thead>
+        <tbody id="pl-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// DATA MODEL
+// ─────────────────────────────────────────────
+const MONTHS = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+const MONTHS_WITH_DATA = [0, 1]; // ENE y FEB tienen datos reales
+
+// Estado de la app
+let state = {
+  company: 'consolidado',
+  view: 'real',
+  accum: 'ytd',
+  selectedMonth: null
+};
+
+// ─── GOOGLE SHEETS CONFIG ────────────────────────────────────────────
+// Sheet publicado en la web (Archivo → Compartir → Publicar en la Web)
+const SHEET_ID    = '1wky84gzCqHfOZtcVV8c1gveLO4Neko17Oy7Vz2DkXKg';
+const RESUMEN_GID = '1637016204';
+const GVIZ_URL    = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq` +
+                    `?gid=${RESUMEN_GID}&range=A3:Q&tqx=out:json`;
+
+// Mapeo grupo P&L_RESUMEN → clave interna del dashboard
+const GRUPO_MAP = {
+  'Total Ingresos':        'Total Ingresos',
+  'Subtotal Sueldos':      'Sueldos',
+  'Subtotal G. Personal':  'Gastos Personal',
+  'Subtotal G. Adm.':      'Gastos Administrativos',
+  'Subtotal G. Mkt.':      'Gastos Marketing',
+  'Subtotal Tercerizados': 'Tercerizados',
+  'Subtotal Otros':        'Otros',
+};
+const EMPRESA_MAP = { 'TG':'tg', 'CDS':'cds', 'VA':'va', 'Consolidado':'consolidado' };
+const ALL_KEYS = [...Object.values(GRUPO_MAP), 'Total Gastos', 'EBITDA', 'RDO. NETO'];
+
+// DATA se rellena dinámicamente desde Google Sheets
+let DATA = buildEmptyData();
+
+function buildEmptyData() {
+  const d = {};
+  for (const e of ['consolidado','tg','cds','va']) {
+    d[e] = { real:{}, ppto:{} };
+    for (const k of ALL_KEYS) {
+      d[e].real[k] = Array(12).fill(null);
+      d[e].ppto[k] = Array(12).fill(null);
+    }
+  }
+  return d;
+}
+
+// ─── CSV PARSER ─────────────────────────────────────────────────────
+function parseCSVRow(row) {
+  const result = []; let cur = ''; let inQ = false;
+  for (let i = 0; i < row.length; i++) {
+    const c = row[i];
+    if (c === '"') { if (inQ && row[i+1]==='"') { cur+='"'; i++; } else inQ=!inQ; }
+    else if (c === ',' && !inQ) { result.push(cur.trim()); cur=''; }
+    else cur += c;
+  }
+  result.push(cur.trim());
+  return result;
+}
+function parseNum(s) {
+  if (!s || s===''||s==='—') return null;
+  const n = parseFloat(String(s).replace(/[^0-9.-]/g,''));
+  return isNaN(n) ? null : n;
+}
+
+// ─── LOADER GOOGLE SHEETS ────────────────────────────────────────────
+// Estrategia dual:
+//   1. fetch() + gviz JSON  → funciona desde GitHub Pages / HTTPS
+//   2. JSONP fallback        → funciona desde file:// local
+
+function loadSheetsData() {
+  setLoadingStatus('Cargando datos…');
+  fetch(GVIZ_URL)
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(text => {
+      // La respuesta gviz viene envuelta: /*O_o*/\ngoogle.visualization.Query.setResponse({...});\n
+      const jsonStart = text.indexOf('{');
+      const jsonEnd   = text.lastIndexOf('}');
+      if (jsonStart < 0 || jsonEnd < 0) throw new Error('gviz: no JSON encontrado');
+      const resp = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
+      processGvizResponse(resp);
+    })
+    .catch(err => {
+      console.warn('fetch() falló, usando JSONP:', err.message);
+      loadSheetsDataJSONP();
+    });
+}
+
+function loadSheetsDataJSONP() {
+  const cbName = 'gviz_cb_' + Date.now();
+  const url    = GVIZ_URL.replace('tqx=out:json', `tqx=out:json;handler:${cbName}`);
+
+  const timer = setTimeout(() => {
+    if (window[cbName]) {
+      delete window[cbName];
+      setLoadingStatus('⚠ Sin respuesta del Sheet — verificá la conexión');
+    }
+  }, 12000);
+
+  window[cbName] = function(resp) {
+    clearTimeout(timer);
+    delete window[cbName];
+    processGvizResponse(resp);
+  };
+
+  const script = document.createElement('script');
+  script.src = url;
+  script.onerror = () => {
+    clearTimeout(timer);
+    if (window[cbName]) delete window[cbName];
+    setLoadingStatus('⚠ Sin acceso al Sheet — verificá que esté publicado');
+  };
+  document.head.appendChild(script);
+}
+
+function processGvizResponse(resp) {
+  try {
+    if (!resp || resp.status !== 'ok') throw new Error('gviz status: ' + (resp&&resp.status));
+    const table = resp.table;
+    const cols  = table.cols.map(c => (c.label || c.id || '').toLowerCase().trim());
+
+    const gi        = cols.findIndex(h => h === 'grupo_pl');
+    const ei        = cols.findIndex(h => h === 'empresa');
+    const ti        = cols.findIndex(h => h === 'tipo');
+    const monthCols = MONTHS.map(m => cols.findIndex(h => h === m.toLowerCase()));
+
+    DATA = buildEmptyData();
+    const mWithData = new Set();
+
+    for (const row of table.rows) {
+      const c   = row.c || [];
+      const get = i => (c[i] != null && c[i].v !== undefined) ? c[i].v : null;
+
+      const grupo   = String(get(gi) || '').trim();
+      const empresa = String(get(ei) || '').trim();
+      const tipo    = String(get(ti) || '').trim();
+      const dataKey = GRUPO_MAP[grupo];
+      const empKey  = EMPRESA_MAP[empresa];
+      const tipoKey = tipo === 'Real' ? 'real' : tipo === 'Presupuesto' ? 'ppto' : null;
+      if (!dataKey || !empKey || !tipoKey) continue;
+
+      DATA[empKey][tipoKey][dataKey] = monthCols.map((col, mi) => {
+        if (col < 0) return null;
+        const raw = get(col);
+        const n   = typeof raw === 'number' ? raw : parseNum(String(raw ?? ''));
+        if (n && n !== 0 && tipoKey === 'real') mWithData.add(mi);
+        return n;
+      });
+    }
+
+    // Calcular derivados: Total Gastos, EBITDA, RDO. NETO
+    const gastoKeys = ['Sueldos','Gastos Personal','Gastos Administrativos','Gastos Marketing','Tercerizados'];
+    for (const ek of ['consolidado','tg','cds','va']) {
+      for (const tk of ['real','ppto']) {
+        const d = DATA[ek][tk];
+        for (let m = 0; m < 12; m++) {
+          const vals = gastoKeys.map(k => d[k]?.[m]).filter(v => v !== null);
+          const tg   = vals.length ? vals.reduce((a,b) => a+b, 0) : null;
+          const ti2  = d['Total Ingresos']?.[m] ?? null;
+          const ot   = d['Otros']?.[m] ?? 0;
+          const eb   = (ti2 !== null && tg !== null) ? ti2 - tg : null;
+          const neto = eb !== null ? eb - ot : null;
+          d['Total Gastos'][m] = tg;
+          d['EBITDA'][m]       = eb;
+          d['RDO. NETO'][m]    = neto;
+        }
+      }
+    }
+
+    // Meses con datos reales detectados automáticamente
+    MONTHS_WITH_DATA.length = 0;
+    if (mWithData.size > 0) [...mWithData].sort((a,b) => a-b).forEach(m => MONTHS_WITH_DATA.push(m));
+    else MONTHS_WITH_DATA.push(0);
+
+    setLoadingStatus(null);
+    const now = new Date();
+    document.getElementById('last-update').textContent =
+      'Actualizado: ' + now.toLocaleString('es-AR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+    refresh();
+
+  } catch(err) {
+    console.error('Error procesando datos del Sheet:', err);
+    setLoadingStatus('⚠ Error al procesar datos — ver consola');
+  }
+}
+
+function setLoadingStatus(msg) {
+  const el = document.getElementById('loading-status');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.display = msg ? 'inline-block' : 'none';
+}
+
+// ─── ESTRUCTURA P&L ───
+const PL_STRUCTURE = [
+  { id:'s_ingresos',  label:'INGRESOS',             type:'section', children:[
+    'Acuerdos Comerciales','Acuerdos Com Efectivo','FEE Inicial','Merchandising','Royalty Efectivo','Royalty Mensual'
+  ]},
+  { id:'total_ing',   label:'Total Ingresos',        type:'subtotal', key:'Total Ingresos', cls:'row-subtotal', sign:1 },
+  { id:'s_sueldos',   label:'SUELDOS',               type:'section', children:[
+    'Sueldo Administración','Sueldo Comercial','Sueldo Gestión','Sueldo Marketing','Sueldo Operaciones','SAC','Cargas Sociales','Bonos Objetivos','Bonos Aperturas'
+  ]},
+  { id:'sub_sueldos', label:'Subtotal Sueldos',      type:'subtotal', key:'Sueldos', sign:-1 },
+  { id:'s_gpers',     label:'GASTOS PERSONAL',       type:'section', children:[
+    'Beneficios','Recruiting','Capacitaciones','Desarrollo y Formación','Prepaga','Retenciones Ganancias','Viandas','Viáticos'
+  ]},
+  { id:'sub_gpers',   label:'Subtotal Gastos Personal', type:'subtotal', key:'Gastos Personal', sign:-1 },
+  { id:'s_gadm',      label:'GASTOS ADMINISTRATIVOS',type:'section', children:[
+    'Alquiler','Fee Experiencias','Equipamiento','Expensas','Gastos Bancarios','Mantenimiento','Insumos Oficina','Seguro','Servicios','Sistemas de Gestión'
+  ]},
+  { id:'sub_gadm',    label:'Subtotal Gastos Adm.',  type:'subtotal', key:'Gastos Administrativos', sign:-1 },
+  { id:'s_gmkt',      label:'GASTOS MARKETING',      type:'section', children:[
+    'Acciones Marketing','Diseño','Fidelización'
+  ]},
+  { id:'sub_gmkt',    label:'Subtotal Gastos Mkt.',  type:'subtotal', key:'Gastos Marketing', sign:-1 },
+  { id:'s_terc',      label:'TERCERIZADOS',          type:'section', children:['Tercerizados'] },
+  { id:'total_gas',   label:'TOTAL GASTOS',          type:'subtotal', key:'Total Gastos', cls:'row-subtotal', sign:-1 },
+  { id:'ebitda',      label:'EBITDA',                type:'result',   key:'EBITDA', cls:'row-result-ebitda' },
+  { id:'s_imp',       label:'IMPUESTOS Y GASTOS',    type:'section', children:['Imp. Ganancias','IIBB'] },
+  { id:'sub_imp',     label:'Subtotal Impuestos',    type:'subtotal', key:'Impuestos y Gastos', sign:-1 },
+  { id:'neto',        label:'RDO. NETO',             type:'result',   key:'RDO. NETO', cls:'row-result-neto' },
+  { id:'s_div',       label:'DIVIDENDOS',            type:'section', children:['Retiro Socios','Compra USD','Autónomos'] },
+  { id:'sub_div',     label:'Subtotal Dividendos',   type:'subtotal', key:'Dividendos', sign:-1 },
+  { id:'s_otros',     label:'OTROS',                 type:'section', children:['Sueldo Internacional','Internacional'] },
+  { id:'sub_otros',   label:'Subtotal Otros',        type:'subtotal', key:'Otros', sign:-1 },
+];
+
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+function fmt(v) {
+  if (v === null || v === undefined) return '—';
+  const abs = Math.abs(v);
+  if (abs >= 1e9) return (v/1e9).toFixed(1) + 'B';
+  if (abs >= 1e6) return '$' + (v/1e6).toFixed(1) + 'M';
+  if (abs >= 1e3) return '$' + (v/1e3).toFixed(0) + 'K';
+  return '$' + v.toFixed(0);
+}
+function fmtFull(v) {
+  if (v === null || v === undefined) return '—';
+  return '$' + Math.abs(v).toLocaleString('es-AR', {maximumFractionDigits:0});
+}
+function pct(val, base) {
+  if (!base || base === 0) return '—';
+  return (val / base * 100).toFixed(1) + '%';
+}
+function delta(a, b) {
+  if (!b) return null;
+  return (a - b) / Math.abs(b) * 100;
+}
+
+// Sumar meses según estado (ytd vs mes)
+function getMonthsRange() {
+  if (state.accum === 'ytd') {
+    return MONTHS_WITH_DATA; // [0, 1]
+  }
+  return state.selectedMonth !== null ? [state.selectedMonth] : MONTHS_WITH_DATA;
+}
+
+function sumForKey(company, tipo, key) {
+  const months = getMonthsRange();
+  const src = DATA[company]?.[tipo];
+  if (!src || !src[key]) return null;
+  let total = 0;
+  let hasData = false;
+  for (const m of months) {
+    const v = src[key][m];
+    if (v !== null && v !== undefined) { total += v; hasData = true; }
+  }
+  return hasData ? total : null;
+}
+
+function getVal(key) {
+  return sumForKey(state.company, 'real', key);
+}
+function getPpto(key) {
+  return sumForKey(state.company, 'ppto', key);
+}
+
+// ─────────────────────────────────────────────
+// KPI CARDS
+// ─────────────────────────────────────────────
+function renderKPIs() {
+  const ing    = getVal('Total Ingresos');
+  const gas    = getVal('Total Gastos');
+  const ebitda = getVal('EBITDA');
+  const neto   = getVal('RDO. NETO');
+
+  const pptoIng    = getPpto('Total Ingresos');
+  const pptoEbitda = getPpto('EBITDA');
+  const pptoNeto   = getPpto('RDO. NETO');
+
+  const d_ing    = delta(ing, pptoIng);
+  const d_ebitda = delta(ebitda, pptoEbitda);
+  const d_neto   = delta(neto, pptoNeto);
+
+  const kpis = [
+    {
+      label: 'Ingresos Totales', cls: 'ingresos',
+      value: fmt(ing),
+      pctLabel: ing && gas ? pct(ing - gas, ing) + ' margen bruto' : '',
+      delta: d_ing, pptoLabel: pptoIng ? 'vs ppto ' + fmt(pptoIng) : ''
+    },
+    {
+      label: 'Total Gastos', cls: 'gastos',
+      value: fmt(gas),
+      pctLabel: ing ? pct(gas, ing) + ' s/ingresos' : '',
+      delta: gas && getPpto('Total Gastos') ? delta(gas, getPpto('Total Gastos')) : null,
+      pptoLabel: ''
+    },
+    {
+      label: 'EBITDA', cls: 'ebitda',
+      value: fmt(ebitda),
+      pctLabel: ing ? pct(ebitda, ing) + ' margen' : '',
+      delta: d_ebitda, pptoLabel: pptoEbitda ? 'vs ppto ' + fmt(pptoEbitda) : ''
+    },
+    {
+      label: 'RDO. NETO', cls: 'neto',
+      value: fmt(neto),
+      pctLabel: ing ? pct(neto, ing) + ' margen neto' : '',
+      delta: d_neto, pptoLabel: pptoNeto ? 'vs ppto ' + fmt(pptoNeto) : ''
+    },
+  ];
+
+  document.getElementById('kpi-row').innerHTML = kpis.map(k => `
+    <div class="kpi-card ${k.cls}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value ${k.cls}">${k.value}</div>
+      <div class="kpi-meta">
+        ${k.pctLabel ? `<span class="kpi-pct">${k.pctLabel}</span>` : ''}
+        ${k.delta !== null && k.delta !== undefined ? `<span class="delta ${k.delta >= 0 ? 'up':'down'}">${Math.abs(k.delta).toFixed(1)}%</span>` : ''}
+        ${k.pptoLabel ? `<span class="kpi-vs">${k.pptoLabel}</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ─────────────────────────────────────────────
+// EVOLUTION CHART
+// ─────────────────────────────────────────────
+let evolutionChart = null;
+function renderEvolutionChart() {
+  const ctx = document.getElementById('evolutionChart').getContext('2d');
+  const co  = state.company;
+  const real = DATA[co]?.real;
+  const ppto = DATA[co]?.ppto;
+
+  const labels = MONTHS;
+  const mkSeries = (key, tipo='real') => MONTHS.map((_,i) => {
+    const src = tipo === 'real' ? real : ppto;
+    return src?.[key]?.[i] ?? null;
+  });
+
+  const datasets = [
+    {
+      label: 'Ingresos',
+      data: mkSeries('Total Ingresos'),
+      backgroundColor: 'rgba(0,212,170,0.15)',
+      borderColor: '#00d4aa',
+      borderWidth: 2,
+      pointRadius: 4,
+      pointBackgroundColor: '#00d4aa',
+      type: 'bar',
+      yAxisID: 'y',
+      order: 2
+    },
+    {
+      label: 'Total Gastos',
+      data: mkSeries('Total Gastos'),
+      backgroundColor: 'rgba(239,68,68,0.15)',
+      borderColor: '#ef4444',
+      borderWidth: 2,
+      pointRadius: 4,
+      pointBackgroundColor: '#ef4444',
+      type: 'bar',
+      yAxisID: 'y',
+      order: 2
+    },
+    {
+      label: 'EBITDA',
+      data: mkSeries('EBITDA'),
+      borderColor: '#3b82f6',
+      borderWidth: 2.5,
+      pointRadius: 5,
+      pointBackgroundColor: '#3b82f6',
+      type: 'line',
+      tension: 0.3,
+      yAxisID: 'y',
+      fill: false,
+      order: 1
+    },
+    {
+      label: 'RDO. Neto',
+      data: mkSeries('RDO. NETO'),
+      borderColor: '#a855f7',
+      borderWidth: 2,
+      pointRadius: 4,
+      pointBackgroundColor: '#a855f7',
+      type: 'line',
+      tension: 0.3,
+      fill: false,
+      order: 1
+    },
+  ];
+
+  const opts = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#1a2540',
+        borderColor: '#1e2d45',
+        borderWidth: 1,
+        titleColor: '#f1f5f9',
+        bodyColor: '#94a3b8',
+        callbacks: {
+          label: ctx => ' ' + ctx.dataset.label + ': ' + fmtFull(ctx.raw)
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: 'rgba(30,45,69,0.5)' },
+        ticks: { color: '#475569', font: { size: 11 } }
+      },
+      y: {
+        grid: { color: 'rgba(30,45,69,0.5)' },
+        ticks: {
+          color: '#475569',
+          font: { size: 11 },
+          callback: v => fmt(v)
+        }
+      }
+    }
+  };
+
+  if (evolutionChart) evolutionChart.destroy();
+  evolutionChart = new Chart(ctx, { type: 'bar', data: { labels, datasets }, options: opts });
+}
+
+// ─────────────────────────────────────────────
+// MONTH GRID
+// ─────────────────────────────────────────────
+function renderMonthGrid() {
+  const grid = document.getElementById('month-grid');
+  grid.innerHTML = MONTHS.map((m, i) => {
+    const hasData = MONTHS_WITH_DATA.includes(i);
+    const isActive = state.selectedMonth === i || (state.accum === 'ytd' && state.selectedMonth === null);
+    return `<div class="month-btn ${hasData ? 'has-data' : ''} ${isActive && state.accum !== 'ytd' ? 'active' : ''}"
+                 onclick="selectMonth(${i})">${m}</div>`;
+  }).join('');
+}
+
+function selectMonth(i) {
+  if (!MONTHS_WITH_DATA.includes(i)) return;
+  state.selectedMonth = i;
+  state.accum = 'mes';
+  document.querySelectorAll('#accum-pills .pill').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('#accum-pills .pill')[1].classList.add('active');
+  refresh();
+}
+
+// ─────────────────────────────────────────────
+// VARIANCE BARS
+// ─────────────────────────────────────────────
+function renderVarianceBars() {
+  const items = [
+    { label:'Ingresos',      key:'Total Ingresos',  isPositive: true },
+    { label:'Sueldos',       key:'Sueldos',          isPositive: false },
+    { label:'Gastos Adm.',   key:'Gastos Administrativos', isPositive: false },
+    { label:'Gastos Mkt.',   key:'Gastos Marketing', isPositive: false },
+    { label:'EBITDA',        key:'EBITDA',           isPositive: true },
+    { label:'RDO. Neto',     key:'RDO. NETO',        isPositive: true },
+  ];
+
+  document.getElementById('variance-bars').innerHTML = items.map(item => {
+    const real  = getVal(item.key);
+    const ppto  = getPpto(item.key);
+    if (!real || !ppto) return `
+      <div class="variance-row">
+        <div class="var-label">${item.label}</div>
+        <div class="var-bar-track"><div class="var-bar-fill" style="width:0%;background:#475569"></div></div>
+        <div class="var-pct" style="color:#475569">—</div>
+      </div>`;
+    const pctVal = (real / ppto * 100);
+    const fill   = Math.min(pctVal, 100);
+    const diffPct= pctVal - 100;
+    const isGood = item.isPositive ? diffPct >= 0 : diffPct <= 0;
+    const color  = isGood ? '#22c55e' : '#ef4444';
+    const sign   = diffPct >= 0 ? '+' : '';
+    return `
+      <div class="variance-row">
+        <div class="var-label" title="${item.label}">${item.label}</div>
+        <div class="var-bar-track">
+          <div class="var-bar-fill" style="width:${fill}%;background:${color}"></div>
+        </div>
+        <div class="var-pct" style="color:${color}">${sign}${diffPct.toFixed(0)}%</div>
+      </div>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────
+// P&L TABLE
+// ─────────────────────────────────────────────
+let openSections = new Set();
+
+function renderTable() {
+  const months = getMonthsRange();
+  const showMonths = state.accum === 'ytd' ? MONTHS_WITH_DATA : months;
+  const isComp = state.view === 'comp';
+
+  // Header
+  let thCols = '<th>Cuenta</th>';
+  if (state.accum === 'ytd') {
+    thCols += '<th>YTD Total</th><th>% s/Ing.</th>';
+    if (isComp) thCols += '<th>Ppto</th><th>Var %</th>';
+  } else {
+    showMonths.forEach(m => {
+      thCols += `<th>${MONTHS[m]}</th><th>%</th>`;
+      if (isComp) thCols += '<th>Ppto</th><th>Var%</th>';
+    });
+  }
+  document.getElementById('pl-thead').innerHTML = `<tr>${thCols}</tr>`;
+
+  const ingTotal = getVal('Total Ingresos') || 1;
+
+  function cellsForKey(key, sign=1) {
+    const real  = getVal(key);
+    const pptoV = getPpto(key);
+    if (state.accum === 'ytd') {
+      let html = `<td>${fmtFull(real ? real * sign : null)}</td>`;
+      html += `<td><span class="cell-pct">${real ? pct(real, ingTotal) : '—'}</span></td>`;
+      if (isComp) {
+        html += `<td>${fmtFull(pptoV)}</td>`;
+        if (real && pptoV) {
+          const d = delta(real, pptoV);
+          const good = sign > 0 ? d >= 0 : d <= 0;
+          html += `<td><span class="cell-vs-ppto ${good?'pos':'neg'}">${d >= 0 ? '+':''}${d.toFixed(1)}%</span></td>`;
+        } else html += '<td>—</td>';
+      }
+      return html;
+    }
+    // By month
+    let html = '';
+    showMonths.forEach(m => {
+      const co = state.company;
+      const v = DATA[co]?.real?.[key]?.[m];
+      html += `<td>${fmtFull(v !== null && v !== undefined ? v * sign : null)}</td>`;
+      html += `<td><span class="cell-pct">${v ? pct(v, DATA[co]?.real?.['Total Ingresos']?.[m] || 1) : '—'}</span></td>`;
+      if (isComp) {
+        const vp = DATA[co]?.ppto?.[key]?.[m];
+        html += `<td>${fmtFull(vp)}</td>`;
+        if (v && vp) {
+          const d = delta(v, vp);
+          const good = sign > 0 ? d >= 0 : d <= 0;
+          html += `<td><span class="cell-vs-ppto ${good?'pos':'neg'}">${d >= 0 ? '+':''}${d.toFixed(1)}%</span></td>`;
+        } else html += '<td>—</td>';
+      }
+    });
+    return html;
+  }
+
+  let tbody = '';
+  PL_STRUCTURE.forEach(row => {
+    if (row.type === 'section') {
+      const isOpen = openSections.has(row.id);
+      tbody += `<tr class="row-section-header" onclick="toggleSection('${row.id}')">
+        <td colspan="20">
+          <span class="cell-name">
+            <span class="toggle-icon ${isOpen?'open':''}">▶</span>
+            ${row.label}
+          </span>
+        </td>
+      </tr>`;
+      row.children.forEach(childKey => {
+        tbody += `<tr class="row-detail ${isOpen?'':'hidden'}" data-section="${row.id}">
+          <td><span class="cell-name indent">${childKey}</span></td>
+          ${cellsForKey(childKey)}
+        </tr>`;
+      });
+    } else if (row.type === 'subtotal') {
+      tbody += `<tr class="${row.cls || 'row-subtotal'}">
+        <td><span class="cell-name">${row.label}</span></td>
+        ${cellsForKey(row.key, row.sign || 1)}
+      </tr>`;
+    } else if (row.type === 'result') {
+      tbody += `<tr class="${row.cls || 'row-subtotal'}">
+        <td><span class="cell-name">${row.label}</span></td>
+        ${cellsForKey(row.key)}
+      </tr>`;
+    }
+  });
+
+  document.getElementById('pl-tbody').innerHTML = tbody;
+
+  // Update table title
+  const co = state.company.toUpperCase();
+  const coLabel = state.company === 'consolidado' ? 'Consolidado' : co;
+  const monthsLabel = state.accum === 'ytd' ? 'YTD ENE–FEB 2026' :
+    state.selectedMonth !== null ? MONTHS[state.selectedMonth] + ' 2026' : 'YTD 2026';
+  document.getElementById('table-title').textContent =
+    `Estado de Resultados — ${coLabel} · ${monthsLabel}`;
+}
+
+function toggleSection(id) {
+  if (openSections.has(id)) openSections.delete(id);
+  else openSections.add(id);
+  renderTable();
+}
+function expandAll() {
+  PL_STRUCTURE.filter(r => r.type === 'section').forEach(r => openSections.add(r.id));
+  renderTable();
+}
+function collapseAll() {
+  openSections.clear();
+  renderTable();
+}
+
+// ─────────────────────────────────────────────
+// NAVIGATION ACTIONS
+// ─────────────────────────────────────────────
+function selectCompany(co, el) {
+  state.company = co;
+  document.querySelectorAll('.company-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  refresh();
+}
+
+function selectView(v, el) {
+  state.view = v;
+  document.querySelectorAll('#view-pills .pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  renderTable();
+  renderVarianceBars();
+  renderKPIs();
+}
+
+function selectAccum(v, el) {
+  state.accum = v;
+  document.querySelectorAll('#accum-pills .pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  if (v === 'ytd') state.selectedMonth = null;
+  else if (state.selectedMonth === null) state.selectedMonth = MONTHS_WITH_DATA[MONTHS_WITH_DATA.length - 1];
+  refresh();
+}
+
+function refresh() {
+  renderKPIs();
+  renderEvolutionChart();
+  renderMonthGrid();
+  renderVarianceBars();
+  renderTable();
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  refresh();          // muestra estructura vacía mientras carga
+  loadSheetsData();   // trae datos en vivo desde Google Sheets
+});
+</script>
+</body>
+</html>
